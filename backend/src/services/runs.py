@@ -6,19 +6,25 @@ from fastapi import HTTPException
 from src.models.run import Run
 from src.models.review import Review
 from src.services import studies
+from src.services.count_store import SwitchInProgress
 from src.services.domain_validation import validate_parameters
 from src.services.audits import log
 from src.utils.serializers import record,now,checksum
 
 def create(db,data,user):
     studies.require(db,data.study_id)
-    rows=studies.observations(db,data.study_id)
-    if not rows: raise HTTPException(422,'先录入至少一条业务观测')
     try: params=validate_parameters(data.parameters)
     except (ValueError,TypeError) as e: raise HTTPException(422,str(e))
-    snapshot=[{'source_key':x['source_key'],'values':x['values']} for x in rows]
+    # 冻结采用同一完整版本：锁迁移状态与该批次研究行，按当前读取依据取快照；
+    # switching 窗口明确拒绝，避免取到新旧混合的输入。
+    try:
+        frozen=studies.counts_ops.freeze_snapshot(studies.count_gw,db,data.study_id)
+    except SwitchInProgress as e:
+        raise HTTPException(409,str(e))
+    snapshot=frozen['snapshot']
+    if not snapshot: raise HTTPException(422,'先录入至少一条业务观测')
     run=Run(study_id=data.study_id,name=data.name,parameters=params,snapshot=snapshot,checksum=checksum(snapshot),created_at=now(),status='queued')
-    db.add(run);db.flush();log(db,user,'run.queue',str(run.id));db.commit()
+    db.add(run);db.flush();log(db,user,'run.queue',f"{run.id} freeze_basis={frozen['read_basis']}");db.commit()
     Redis.from_url(os.environ['REDIS_URL']).rpush('analysis-queue',run.id)
     return record(run)
 
@@ -45,4 +51,4 @@ def export(db,id,user):
     stream=io.StringIO();w=csv.writer(stream);w.writerow(['运行编号','输入校验SHA256','指标','值'])
     for k,v in r['result']['metrics'].items(): w.writerow([id,r['checksum'],k,json.dumps(v,ensure_ascii=False) if isinstance(v,(dict,list)) else v])
     w.writerow([id,r['checksum'],'解释',r['result']['interpretation']]);log(db,user,'run.export',id);db.commit()
-    return '\ufeff'+stream.getvalue()
+    return '﻿'+stream.getvalue()

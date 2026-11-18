@@ -59,4 +59,13 @@ seed提供3次试验×2个工艺组，共6条汇总计数，代表600份独立�
 
 已知边界：小型本地研究应用，使用合成数据，不含企业SSO与外发邮件；结果由人工复核，不自动执行业务决策；单worker恢复queued/running任务，数据库与Redis间未采用分布式事务。以当前测试目录TESTING.md记录实际验证结果。
 
+## 工艺计数存储迁移（浮点 JSON → 整数专用存储）
+工艺计数长期存于 `observations.values` 的浮点 JSON，现迁入整数专用表 `observations_int`，迁移期间录入与研究发起不中断：
+- 阶段机 `legacy → dual → switching → integer`，可从 `switching/integer` 一键回退到 `dual`；状态存于单例 `migration_state`。
+- `dual` 阶段在线回填（按旧表主键游标、幂等、可中断续跑），新增/更正/移除在同一事务双写两存储；移除落 `observation_tombstones` 墓碑，回填绝不复活已移除记录，同自然键重录自动清碑。
+- 原子切换两步：`switch/begin` 进入 switching 并拒绝新研究冻结；`switch/complete` 在同事务全量校验，发现任何差异即拒绝切换并保留旧表读写；回退保留期间全部写入。
+- 研究冻结锁定迁移状态与该批次研究行，取同一完整版本快照；已完成研究的历史快照与 SHA256 不被迁移触碰。
+- 接口 `/api/migration/{status,start,backfill,verify,switch/begin,switch/complete,rollback}`（仅 admin）；前端「存储迁移」页与来源录入/分析执行页呈现迁移阶段、校验差异与当前读取依据。
+- 迁移核心只依赖存储网关协议，`backend/TESTING.md` 记录仅用标准库 sqlite 的 14 项并发与生命周期验证（含移除撞回填、切换撞冻结、回退前新写入）。
+
 MIT License。

@@ -4,5 +4,6 @@ def overview(db): return {'studies':studies.list_studies(db),'runs':runs.list_ru
 def create_study(db,data,user): return studies.create(db,data,user)
 def list_rows(db,id): return studies.observations(db,id)
 def save_row(db,id,data,user,row_id=None): return studies.save_observation(db,id,data,user,row_id)
+def remove_row(db,id,row_id,user): return studies.delete_observation(db,id,row_id,user)
 def create_run(db,data,user): return runs.create(db,data,user)
 def review_run(db,id,data,user): return runs.approve(db,id,data,user)

@@ -8,3 +8,28 @@ main { background-image:linear-gradient(to right, transparent 39px, color-mix(in
 .worksheet { border:1px solid var(--ink);border-top:8px solid var(--accent); }
 th { border-top:2px solid var(--ink); }
 @media(max-width:767px){ .hero {grid-template-columns:1fr} }
+
+/* Storage migration console and phase banners. */
+.mig-banner{border:1px solid var(--ink);border-left:6px solid var(--rule);padding:18px 22px;margin:22px 0;background:color-mix(in oklch,var(--paper) 92%,var(--accent))}
+.mig-banner.dual{border-left-color:oklch(62% .12 200)}
+.mig-banner.switching{border-left-color:oklch(60% .16 90);background:color-mix(in oklch,var(--accent) 10%,var(--paper))}
+.mig-banner.integer{border-left-color:oklch(55% .14 145)}
+.mig-banner-head{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.mig-phase{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid var(--ink);white-space:nowrap}
+.mig-phase.legacy{background:color-mix(in oklch,var(--ink) 8%,var(--paper))}
+.mig-phase.dual{background:color-mix(in oklch,oklch(62% .12 200) 18%,var(--paper))}
+.mig-phase.switching{background:color-mix(in oklch,oklch(60% .16 90) 22%,var(--paper))}
+.mig-phase.integer{background:color-mix(in oklch,oklch(55% .14 145) 20%,var(--paper))}
+.mig-basis{font-size:14px;font-weight:600}
+.mig-meta{display:flex;flex-wrap:wrap;gap:26px;margin:14px 0 6px;font-family:'IBM Plex Mono',monospace;font-size:12px}
+.mig-detail{font-size:13px;margin:8px 0 0}
+.mig-ok{color:oklch(45% .12 145);font-family:'IBM Plex Mono',monospace;font-size:12px}
+.mig-diffs{border-bottom:0;margin:12px 0 0}
+.mig-diffs pre{max-height:240px;margin-top:10px}
+.mig-console{border:1px solid var(--ink);border-top:8px solid var(--accent);padding:20px 26px;margin:26px 0}
+.mig-actions{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.mig-btn-group{display:flex;flex-wrap:wrap;gap:12px}
+button.mig-action{background:var(--paper);color:var(--ink)}
+button.mig-action.warn{background:color-mix(in oklch,oklch(60% .16 90) 18%,var(--paper))}
+.mig-result{font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:16px;white-space:pre-wrap;word-break:break-word}
+.mig-basis{font-family:'IBM Plex Mono',monospace;font-size:13px}

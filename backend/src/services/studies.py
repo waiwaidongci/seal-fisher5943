@@ -4,7 +4,13 @@ from src.models.study import Study
 from src.models.observation import Observation
 from src.services.domain_validation import validate_values
 from src.services.audits import log
+from src.services.count_store import CountError,DuplicateRow,RowMissing
+from src.services.count_gateway_sa import SqlAlchemyCountGateway
+from src.services import counts_ops
 from src.utils.serializers import record
+
+# 生产环境单一计数存储网关（无状态，仅持有 SQLAlchemy 映射）
+count_gw=SqlAlchemyCountGateway()
 
 def list_studies(db):
     data=[]
@@ -22,19 +28,30 @@ def require(db,id):
     return s
 
 def observations(db,id):
-    require(db,id);return [record(x) for x in db.scalars(select(Observation).where(Observation.study_id==id).order_by(Observation.id))]
+    require(db,id)
+    bundle=counts_ops.list_rows(count_gw,db,id)
+    return bundle['rows']
+
+def migration_status(db):
+    from src.services import migration
+    return migration.status(count_gw,db)
 
 def save_observation(db,id,data,user,row_id=None):
     require(db,id)
     try: values=validate_values(data.values)
     except (ValueError,TypeError) as e: raise HTTPException(422,str(e))
-    other=db.scalar(select(Observation).where(Observation.study_id==id,Observation.source_key==data.source_key))
-    if other and other.id!=row_id: raise HTTPException(409,'源记录编号重复')
-    if row_id:
-        row=db.get(Observation,row_id)
-        if not row or row.study_id!=id: raise HTTPException(404,'记录不存在')
-        row.source_key=data.source_key;row.values=values
-    else:
-        if len(observations(db,id))>=5000: raise HTTPException(422,'小型研究最多5000行')
-        row=Observation(study_id=id,source_key=data.source_key,values=values);db.add(row)
-    log(db,user,'observation.save',f'{id}/{data.source_key}');db.commit();return record(row)
+    try:
+        row=counts_ops.save(count_gw,db,id,data.source_key,values,row_id)
+    except DuplicateRow as e: raise HTTPException(409,str(e))
+    except RowMissing as e: raise HTTPException(404,str(e))
+    except CountError as e: raise HTTPException(422,str(e))
+    log(db,user,'observation.save',f'{id}/{data.source_key}');db.commit();return row
+
+def delete_observation(db,id,row_id,user):
+    require(db,id)
+    try:
+        result=counts_ops.remove(count_gw,db,id,row_id)
+    except RowMissing as e: raise HTTPException(404,str(e))
+    except CountError as e: raise HTTPException(422,str(e))
+    log(db,user,'observation.delete',f"{id}/{result['source_key']} tombstone={result['tombstoned']}")
+    db.commit();return result
